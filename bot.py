@@ -4,6 +4,7 @@ import logging
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
 from openai import OpenAI
+import httpx
 
 from config import TELEGRAM_BOT_TOKEN, OPENROUTER_API_KEY, OPENROUTER_MODEL
 
@@ -44,9 +45,13 @@ async def handle_message(message: Message) -> None:
             extra_body={"reasoning": {"enabled": True}},
         )
         reply = response.choices[0].message.content
-    except Exception as e:
-        logger.error("Ошибка при запросе к OpenRouter: %s", e)
-        reply = "Произошла ошибка при обработке запроса."
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
+            logger.warning("Rate limit reached (429). Informing user to wait.")
+            reply = "Слишком много запросов к API, подождите немного и попробуйте снова."
+        else:
+            logger.error("Ошибка при запросе к OpenRouter: %s", e)
+            reply = "Произошла ошибка при обработке запроса."
 
     await message.answer(reply)
 
